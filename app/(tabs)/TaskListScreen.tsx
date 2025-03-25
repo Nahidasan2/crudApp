@@ -1,14 +1,16 @@
 import React, { useEffect, useState } from "react";
-import { View, Text, FlatList, TouchableOpacity, StyleSheet, ActivityIndicator } from "react-native";
+import { View, Text, FlatList, TouchableOpacity, StyleSheet, ActivityIndicator, TextInput } from "react-native";
 import Icon from "react-native-vector-icons/MaterialIcons";
-import { collection, getDocs, deleteDoc, doc } from "firebase/firestore";
+import { collection, getDocs, deleteDoc, doc, updateDoc } from "firebase/firestore";
 import { db } from "../../config/firebaseConfig";
 import { useRouter } from "expo-router";
 
 const TaskListScreen = () => {
   const [tasks, setTasks] = useState<{ id: string; text: string }[]>([]);
   const [loading, setLoading] = useState(true);
-  const router = useRouter(); // Gunakan router untuk navigasi
+  const [editingTask, setEditingTask] = useState<string | null>(null);
+  const [newText, setNewText] = useState("");
+  const router = useRouter();
 
   useEffect(() => {
     const fetchTasks = async () => {
@@ -38,6 +40,25 @@ const TaskListScreen = () => {
     }
   };
 
+  const startEditing = (id: string, text: string) => {
+    setEditingTask(id);
+    setNewText(text);
+  };
+
+  const saveTask = async (id: string) => {
+    if (newText.trim() === "") {
+      alert("Tugas tidak boleh kosong!");
+      return;
+    }
+    try {
+      await updateDoc(doc(db, "Tugas", id), { text: newText });
+      setTasks(tasks.map(task => (task.id === id ? { ...task, text: newText } : task)));
+      setEditingTask(null);
+    } catch (error) {
+      console.error("Error updating task: ", error);
+    }
+  };
+
   return (
     <View style={styles.container}>
       <Text style={styles.title}>List Tugas</Text>
@@ -49,10 +70,32 @@ const TaskListScreen = () => {
           keyExtractor={(item) => item.id}
           renderItem={({ item }) => (
             <View style={styles.taskItem}>
-              <Text style={styles.taskText}>{item.text}</Text>
-              <TouchableOpacity onPress={() => deleteTask(item.id)}>
-                <Icon name="delete" size={24} color="red" />
-              </TouchableOpacity>
+              {editingTask === item.id ? (
+                <TextInput
+                  style={styles.input}
+                  value={newText}
+                  onChangeText={setNewText}
+                  autoFocus
+                />
+              ) : (
+                <Text style={styles.taskText}>{item.text}</Text>
+              )}
+
+              <View style={styles.buttons}>
+                {editingTask === item.id ? (
+                  <TouchableOpacity onPress={() => saveTask(item.id)}>
+                    <Icon name="save" size={24} color="green" />
+                  </TouchableOpacity>
+                ) : (
+                  <TouchableOpacity onPress={() => startEditing(item.id, item.text)}>
+                    <Icon name="edit" size={24} color="blue" />
+                  </TouchableOpacity>
+                )}
+
+                <TouchableOpacity onPress={() => deleteTask(item.id)}>
+                  <Icon name="delete" size={24} color="red" />
+                </TouchableOpacity>
+              </View>
             </View>
           )}
         />
@@ -69,7 +112,9 @@ const styles = StyleSheet.create({
   container: { flex: 1, padding: 20, backgroundColor: "white" },
   title: { fontSize: 24, fontWeight: "bold", marginBottom: 10, marginTop: 20, textAlign: "center" },
   taskItem: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", backgroundColor: "white", padding: 10, borderRadius: 5, marginVertical: 5, borderWidth: 1, borderColor: "#ddd" },
-  taskText: { fontSize: 16 },
+  taskText: { fontSize: 16, flex: 1 },
+  input: { borderWidth: 1, borderColor: "#ccc", padding: 5, borderRadius: 5, flex: 1 },
+  buttons: { flexDirection: "row", gap: 10 },
   backButton: { marginTop: 20, backgroundColor: "#007bff", padding: 10, borderRadius: 5, alignItems: "center" },
   buttonText: { color: "white", fontSize: 16, fontWeight: "bold" },
 });
